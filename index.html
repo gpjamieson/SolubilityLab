@@ -162,7 +162,9 @@
           'water-sugar':  { result: 'soluble', visual: 'clear', process: 'dissolve', remaining: 0 },
           'water-soda':   { result: 'soluble', visual: 'clear', process: 'dissolve', remaining: 0 },
           'water-sand':   { result: 'insoluble', visual: 'sediment', process: 'sink', remaining: 100 },
-          'water-flour':  { result: 'partially', visual: 'cloudy', process: 'cloud', remaining: 40 },
+          
+          // MODIFIED: Flour in water now forces "Insoluble" result with 95% remaining to ensure students pick the right answer.
+          'water-flour':  { result: 'insoluble', visual: 'sediment_clumpy', process: 'sink_clump', remaining: 95 },
 
           'alcohol-salt': { result: 'insoluble', visual: 'sediment', process: 'sink', remaining: 95 },
           'alcohol-sugar': { result: 'insoluble', visual: 'sediment', process: 'sink', remaining: 90 },
