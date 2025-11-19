@@ -218,8 +218,9 @@
            if (remaining > 20 && remaining < 80) barColor = "bg-yellow-500";
            if (remaining >= 80) barColor = "bg-red-500";
 
+           // Removed absolute positioning classes to allow flex layout
            return (
-              <div className="absolute -right-32 top-10 bg-slate-800 p-3 rounded border border-slate-600 shadow-xl w-28 text-center animate-settle">
+              <div className="bg-slate-800 p-3 rounded border border-slate-600 shadow-xl w-28 text-center animate-settle">
                  <div className="flex items-center justify-center gap-1 text-amber-400 mb-2 border-b border-slate-600 pb-1">
                     <Activity size={14} />
                     <span className="text-[10px] font-bold uppercase tracking-wider">Detector</span>
@@ -638,69 +639,76 @@
                      </div>
                   </div>
 
-                  <div className="relative w-64 h-80 mt-10 group">
-                    <div className="absolute inset-0 border-4 border-white/40 border-t-0 rounded-b-3xl bg-gradient-to-br from-white/10 via-white/5 to-transparent backdrop-blur-[1px] z-20 shadow-2xl pointer-events-none"></div>
-                    <div className="absolute -top-2 -left-2 w-8 h-4 border-l-4 border-b-4 border-white/40 rounded-bl-xl z-20 pointer-events-none"></div>
-
-                    <div className="absolute bottom-10 right-4 w-4 h-0.5 bg-white/30 z-30 pointer-events-none"></div>
-                    <div className="absolute bottom-[12.5rem] right-4 w-8 h-0.5 bg-white/50 z-30 pointer-events-none"><span className="absolute right-10 -top-2 text-[10px] text-white/70 font-mono">50mL</span></div>
+                  {/* VISUAL CONTAINER WRAPPER: Holds Beaker + Sensor Side-by-Side */}
+                  <div className="flex flex-row items-center justify-center gap-16 min-h-[320px] mt-10">
                     
-                    {/* SOLUTE METER */}
-                    {reactionState === 'done' && visualConfig && (
-                       <SoluteMeter remaining={visualConfig.remaining} />
-                    )}
+                    {/* Beaker Container */}
+                    <div className="relative w-64 h-80 group">
+                        <div className="absolute inset-0 border-4 border-white/40 border-t-0 rounded-b-3xl bg-gradient-to-br from-white/10 via-white/5 to-transparent backdrop-blur-[1px] z-20 shadow-2xl pointer-events-none"></div>
+                        <div className="absolute -top-2 -left-2 w-8 h-4 border-l-4 border-b-4 border-white/40 rounded-bl-xl z-20 pointer-events-none"></div>
 
-                    <div 
-                      className={`absolute bottom-2 left-2 right-2 rounded-b-[20px] transition-all duration-1000 ease-out z-10 flex justify-center items-end overflow-visible
-                        ${currentSolvent ? 'h-48 opacity-100' : 'h-0 opacity-0'}
-                      `}
-                      style={{ backgroundColor: currentSolvent?.hex || 'transparent' }}
-                    >
-                       {(reactionState === 'pouring' || reactionState === 'mixing') && (
-                          <ActiveParticles 
-                            phase={reactionState} 
-                            process={visualConfig?.process} 
-                            color={currentSolute?.color} 
-                          />
-                       )}
-
-                       {reactionState === 'done' && visualConfig && (
-                         <React.Fragment>
-                           {(visualConfig.visual === 'sediment' || visualConfig.visual === 'sediment_clumpy') && (
-                             <Sediment color={currentSolute?.pileColor} />
+                        <div className="absolute bottom-10 right-4 w-4 h-0.5 bg-white/30 z-30 pointer-events-none"></div>
+                        <div className="absolute bottom-[12.5rem] right-4 w-8 h-0.5 bg-white/50 z-30 pointer-events-none"><span className="absolute right-10 -top-2 text-[10px] text-white/70 font-mono">50mL</span></div>
+                        
+                        <div 
+                          className={`absolute bottom-2 left-2 right-2 rounded-b-[20px] transition-all duration-1000 ease-out z-10 flex justify-center items-end overflow-visible
+                            ${currentSolvent ? 'h-48 opacity-100' : 'h-0 opacity-0'}
+                          `}
+                          style={{ backgroundColor: currentSolvent?.hex || 'transparent' }}
+                        >
+                           {(reactionState === 'pouring' || reactionState === 'mixing') && (
+                              <ActiveParticles 
+                                phase={reactionState} 
+                                process={visualConfig?.process} 
+                                color={currentSolute?.color} 
+                              />
                            )}
 
-                           {visualConfig.visual === 'cloudy' && (
-                             <div className="absolute inset-0 bg-white/20 backdrop-blur-[2px] animate-pulse-slow">
-                                {Array.from({length: 60}).map((_, i) => (
-                                  <div key={i} className="absolute w-1 h-1 bg-white/60 rounded-full animate-float" 
-                                       style={{left: `${Math.random()*100}%`, top: `${Math.random()*80 + 10}%`, animationDuration: `${3+Math.random()}s`}} />
-                                ))}
-                             </div>
-                           )}
-                           
-                           {visualConfig.visual === 'fizz' && (
-                              <React.Fragment>
-                                <div className="absolute inset-0 animate-fade-out">
-                                  {Array.from({length: 40}).map((_, i) => (
-                                    <div key={i} className="absolute w-2 h-2 bg-white/40 rounded-full animate-bubble" 
-                                        style={{left: `${Math.random()*90}%`, animationDelay: `${Math.random()}s`}} />
-                                  ))}
-                                </div>
-                                <Foam isFading={true} />
-                              </React.Fragment>
-                           )}
+                           {reactionState === 'done' && visualConfig && (
+                             <React.Fragment>
+                               {(visualConfig.visual === 'sediment' || visualConfig.visual === 'sediment_clumpy') && (
+                                 <Sediment color={currentSolute?.pileColor} />
+                               )}
 
-                           {visualConfig.visual === 'clear' && (
-                              <div className="absolute inset-0 bg-gradient-to-t from-white/5 to-transparent opacity-50"></div>
+                               {visualConfig.visual === 'cloudy' && (
+                                 <div className="absolute inset-0 bg-white/20 backdrop-blur-[2px] animate-pulse-slow">
+                                    {Array.from({length: 60}).map((_, i) => (
+                                      <div key={i} className="absolute w-1 h-1 bg-white/60 rounded-full animate-float" 
+                                           style={{left: `${Math.random()*100}%`, top: `${Math.random()*80 + 10}%`, animationDuration: `${3+Math.random()}s`}} />
+                                    ))}
+                                 </div>
+                               )}
+                               
+                               {visualConfig.visual === 'fizz' && (
+                                  <React.Fragment>
+                                    <div className="absolute inset-0 animate-fade-out">
+                                      {Array.from({length: 40}).map((_, i) => (
+                                        <div key={i} className="absolute w-2 h-2 bg-white/40 rounded-full animate-bubble" 
+                                            style={{left: `${Math.random()*90}%`, animationDelay: `${Math.random()}s`}} />
+                                      ))}
+                                    </div>
+                                    <Foam isFading={true} />
+                                  </React.Fragment>
+                               )}
+
+                               {visualConfig.visual === 'clear' && (
+                                  <div className="absolute inset-0 bg-gradient-to-t from-white/5 to-transparent opacity-50"></div>
+                               )}
+                             </React.Fragment>
                            )}
-                         </React.Fragment>
-                       )}
+                        </div>
+
+                        <div className={`absolute left-1/2 top-[-40px] w-2 h-72 bg-white/40 border border-white/60 rounded-full transform origin-center transition-transform duration-500 z-10 backdrop-blur-sm
+                           ${reactionState === 'mixing' ? 'animate-stir translate-y-24' : '-translate-y-full opacity-0'}
+                        `}></div>
                     </div>
 
-                    <div className={`absolute left-1/2 top-[-40px] w-2 h-72 bg-white/40 border border-white/60 rounded-full transform origin-center transition-transform duration-500 z-10 backdrop-blur-sm
-                       ${reactionState === 'mixing' ? 'animate-stir translate-y-24' : '-translate-y-full opacity-0'}
-                    `}></div>
+                    {/* SENSOR CONTAINER (Sibling of Beaker) */}
+                    <div className="w-32 h-full flex items-center justify-start">
+                      {reactionState === 'done' && visualConfig && (
+                           <SoluteMeter remaining={visualConfig.remaining} />
+                      )}
+                    </div>
                   </div>
 
                   <div className="mt-12 h-16">
