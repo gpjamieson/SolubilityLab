@@ -212,13 +212,43 @@
           </div>
         );
 
-        const SoluteMeter = ({ remaining }) => {
-           // Determine bar color
-           let barColor = "bg-green-500";
-           if (remaining > 20 && remaining < 80) barColor = "bg-yellow-500";
-           if (remaining >= 80) barColor = "bg-red-500";
+        const SoluteMeter = ({ targetValue, isMixing }) => {
+           // ANIMATED NUMBER LOGIC
+           const [displayValue, setDisplayValue] = useState(100);
+           
+           useEffect(() => {
+               // If mixing, we want to animate from current to target over 8s
+               if (isMixing) {
+                   const duration = 8000; // 8s
+                   const frameRate = 30; // ms
+                   const steps = duration / frameRate;
+                   const decrement = (displayValue - targetValue) / steps;
+                   
+                   let current = displayValue;
+                   const timer = setInterval(() => {
+                       current -= decrement;
+                       if ((decrement > 0 && current <= targetValue) || (decrement < 0 && current >= targetValue)) {
+                           setDisplayValue(targetValue);
+                           clearInterval(timer);
+                       } else {
+                           setDisplayValue(current);
+                       }
+                   }, frameRate);
+                   return () => clearInterval(timer);
+               } else {
+                   // Immediate update if not mixing (e.g. reset or init)
+                   setDisplayValue(targetValue);
+               }
+           }, [targetValue, isMixing]);
 
-           // Removed absolute positioning classes to allow flex layout
+           // Determine bar color based on CURRENT display value
+           let barColor = "bg-green-500";
+           if (displayValue > 20 && displayValue < 80) barColor = "bg-yellow-500";
+           if (displayValue >= 80) barColor = "bg-red-500";
+           
+           // CSS Transition class for the BAR height only
+           const transitionClass = isMixing ? "transition-all duration-[8000ms] ease-linear" : "transition-none";
+
            return (
               <div className="bg-slate-800 p-3 rounded border border-slate-600 shadow-xl w-28 text-center animate-settle">
                  <div className="flex items-center justify-center gap-1 text-amber-400 mb-2 border-b border-slate-600 pb-1">
@@ -227,8 +257,8 @@
                  </div>
                  <div className="relative h-24 w-4 bg-slate-900 mx-auto rounded-full border border-slate-700 overflow-hidden">
                     <div 
-                       className={`absolute bottom-0 left-0 right-0 transition-all duration-1000 ease-out ${barColor}`}
-                       style={{ height: `${remaining}%` }}
+                       className={`absolute bottom-0 left-0 right-0 ${transitionClass} ${barColor}`}
+                       style={{ height: `${Math.round(targetValue)}%` }} 
                     ></div>
                     {/* Tick marks */}
                     <div className="absolute top-1/4 left-0 right-0 h-[1px] bg-white/20"></div>
@@ -236,7 +266,7 @@
                     <div className="absolute top-3/4 left-0 right-0 h-[1px] bg-white/20"></div>
                  </div>
                  <div className="mt-2 font-mono text-xs text-white">
-                    <span className="font-bold text-lg">{remaining}%</span>
+                    <span className="font-bold text-lg">{Math.round(displayValue)}%</span>
                     <br/>
                     <span className="text-[9px] text-slate-400">SOLID LEFT</span>
                  </div>
@@ -487,6 +517,7 @@
           const [notebookOpen, setNotebookOpen] = useState(false);
           const [message, setMessage] = useState("Select a SOLVENT to begin.");
           const [needsAttention, setNeedsAttention] = useState(false);
+          const [meterValue, setMeterValue] = useState(100); // Detector target value
 
           useEffect(() => {
             if (audioRef.current) {
@@ -506,6 +537,7 @@
             setVisualConfig(null);
             setMessage("Bench cleared. Ready for next test.");
             setNeedsAttention(false);
+            setMeterValue(100);
           };
 
           const handleSolventClick = (solvent) => {
@@ -521,6 +553,7 @@
             }
             if (currentSolute) return;
             setCurrentSolute(solute);
+            setMeterValue(100); // Initialize meter to 100% on added
             setMessage(`${solute.name} added. Click MIX to start experiment.`);
           };
 
@@ -534,14 +567,20 @@
             setReactionState('pouring');
             setMessage("Pouring solute...");
 
+            // Phase 1: Pouring (4 seconds)
             setTimeout(() => {
               setReactionState('mixing');
               setMessage("Stirring... Observe the particles.");
               
+              // START DETECTOR CHANGE
+              setMeterValue(reactionData.remaining);
+              
+              // Phase 2: Mixing (8 seconds)
               setTimeout(() => {
                 setReactionState('done'); 
                 setMessage("Settling... wait for it...");
                 
+                // Phase 3: Settling (6 seconds)
                 setTimeout(() => {
                    setMessage("Observation complete. Record results in your log.");
                    setNeedsAttention(true); 
@@ -705,8 +744,8 @@
 
                     {/* SENSOR CONTAINER (Sibling of Beaker) */}
                     <div className="w-32 h-full flex items-center justify-start">
-                      {reactionState === 'done' && visualConfig && (
-                           <SoluteMeter remaining={visualConfig.remaining} />
+                      {currentSolute && (
+                           <SoluteMeter targetValue={meterValue} isMixing={reactionState === 'mixing'} />
                       )}
                     </div>
                   </div>
