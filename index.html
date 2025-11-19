@@ -162,12 +162,13 @@
           'water-sugar':  { result: 'soluble', visual: 'clear', process: 'dissolve', remaining: 0 },
           'water-soda':   { result: 'soluble', visual: 'clear', process: 'dissolve', remaining: 0 },
           'water-sand':   { result: 'insoluble', visual: 'sediment', process: 'sink', remaining: 100 },
-          
-          // MODIFIED: Flour in water now forces "Insoluble" result with 95% remaining to ensure students pick the right answer.
           'water-flour':  { result: 'insoluble', visual: 'sediment_clumpy', process: 'sink_clump', remaining: 95 },
 
           'alcohol-salt': { result: 'insoluble', visual: 'sediment', process: 'sink', remaining: 95 },
-          'alcohol-sugar': { result: 'insoluble', visual: 'sediment', process: 'sink', remaining: 90 },
+          
+          // UPDATED: Sugar in Alcohol is now Partially Soluble (50% remaining)
+          'alcohol-sugar': { result: 'partially', visual: 'sediment', process: 'dissolve', remaining: 50 },
+          
           'alcohol-soda': { result: 'insoluble', visual: 'sediment', process: 'sink', remaining: 95 },
           'alcohol-sand': { result: 'insoluble', visual: 'sediment', process: 'sink', remaining: 100 },
           'alcohol-flour': { result: 'insoluble', visual: 'sediment_clumpy', process: 'sink_clump', remaining: 90 },
@@ -176,7 +177,9 @@
           'vinegar-sugar': { result: 'soluble', visual: 'clear', process: 'dissolve', remaining: 0 },
           'vinegar-soda': { result: 'soluble', visual: 'fizz', process: 'react', remaining: 0 },
           'vinegar-sand': { result: 'insoluble', visual: 'sediment', process: 'sink', remaining: 100 },
-          'vinegar-flour': { result: 'partially', visual: 'cloudy', process: 'cloud', remaining: 35 },
+          
+          // UPDATED: Vinegar + Flour is now Insoluble to match your key
+          'vinegar-flour': { result: 'insoluble', visual: 'sediment_clumpy', process: 'sink_clump', remaining: 95 },
 
           'oil-salt':     { result: 'insoluble', visual: 'sediment', process: 'sink', remaining: 100 },
           'oil-sugar':    { result: 'insoluble', visual: 'sediment', process: 'sink', remaining: 100 },
