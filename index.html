@@ -1,0 +1,600 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { Beaker, BookOpen, RotateCcw, FlaskConical, CheckCircle, XCircle, Info, Eye, Lock, Play, Volume2, VolumeX } from 'lucide-react';
+
+// --- Constants & Scientific Data ---
+
+const SOLVENTS = [
+  { id: 'water', name: 'Water', color: 'bg-blue-100/30', hex: 'rgba(219, 234, 254, 0.3)', type: 'polar' },
+  { id: 'alcohol', name: 'Rubbing Alcohol', color: 'bg-slate-100/30', hex: 'rgba(241, 245, 249, 0.3)', type: 'polar_weak' },
+  { id: 'vinegar', name: 'Vinegar', color: 'bg-amber-100/30', hex: 'rgba(254, 243, 199, 0.4)', type: 'acid' },
+  { id: 'oil', name: 'Vegetable Oil', color: 'bg-yellow-300/40', hex: 'rgba(253, 224, 71, 0.5)', type: 'nonpolar' }
+];
+
+const SOLUTES = [
+  { id: 'salt', name: 'Kitchen Salt', color: 'bg-white', type: 'ionic', pileColor: '#ffffff' },
+  { id: 'sugar', name: 'Sugar', color: 'bg-white/80', type: 'polar', pileColor: '#f0f0f0' },
+  { id: 'soda', name: 'Baking Soda', color: 'bg-white', type: 'base', pileColor: '#ffffff' },
+  { id: 'sand', name: 'Sand', color: 'bg-stone-400', type: 'insoluble', pileColor: '#a8a29e' },
+  { id: 'flour', name: 'Flour', color: 'bg-cream-100', type: 'macromolecule', pileColor: '#fefce8' }
+];
+
+const REACTIONS = {
+  'water-salt':   { result: 'soluble', visual: 'clear', process: 'dissolve' },
+  'water-sugar':  { result: 'soluble', visual: 'clear', process: 'dissolve' },
+  'water-soda':   { result: 'soluble', visual: 'clear', process: 'dissolve' },
+  'water-sand':   { result: 'insoluble', visual: 'sediment', process: 'sink' },
+  'water-flour':  { result: 'partially', visual: 'cloudy', process: 'cloud' },
+
+  'alcohol-salt': { result: 'insoluble', visual: 'sediment', process: 'sink' },
+  'alcohol-sugar': { result: 'insoluble', visual: 'sediment', process: 'sink' },
+  'alcohol-soda': { result: 'insoluble', visual: 'sediment', process: 'sink' },
+  'alcohol-sand': { result: 'insoluble', visual: 'sediment', process: 'sink' },
+  'alcohol-flour': { result: 'insoluble', visual: 'sediment_clumpy', process: 'sink_clump' },
+
+  'vinegar-salt': { result: 'soluble', visual: 'clear', process: 'dissolve' },
+  'vinegar-sugar': { result: 'soluble', visual: 'clear', process: 'dissolve' },
+  'vinegar-soda': { result: 'soluble', visual: 'fizz', process: 'react' },
+  'vinegar-sand': { result: 'insoluble', visual: 'sediment', process: 'sink' },
+  'vinegar-flour': { result: 'partially', visual: 'cloudy', process: 'cloud' },
+
+  'oil-salt':     { result: 'insoluble', visual: 'sediment', process: 'sink' },
+  'oil-sugar':    { result: 'insoluble', visual: 'sediment', process: 'sink' },
+  'oil-soda':     { result: 'insoluble', visual: 'sediment', process: 'sink' },
+  'oil-sand':     { result: 'insoluble', visual: 'sediment', process: 'sink' },
+  'oil-flour':    { result: 'insoluble', visual: 'sediment_clumpy', process: 'sink_clump' }
+};
+
+// --- Components ---
+
+const Sediment = ({ color }) => (
+  <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-3/4 h-4 z-10 opacity-90 animate-settle">
+    <div className="absolute bottom-0 left-0 w-full h-2 rounded-t-full blur-[1px]" style={{ backgroundColor: color }}></div>
+    <div className="absolute bottom-0 left-2 w-8 h-3 rounded-t-full" style={{ backgroundColor: color }}></div>
+    <div className="absolute bottom-0 right-4 w-10 h-2.5 rounded-t-full" style={{ backgroundColor: color }}></div>
+  </div>
+);
+
+const ActiveParticles = ({ phase, process, color }) => {
+  const count = process === 'cloud' ? 40 : 20;
+  const items = Array.from({ length: count });
+
+  return (
+    <>
+      {items.map((_, i) => {
+        const delay = Math.random() * 0.5;
+        const left = Math.random() * 60 + 20; 
+        
+        let animClass = '';
+        let style = {};
+
+        if (phase === 'pouring') {
+          animClass = 'animate-fall';
+          style = { left: `${left}%`, top: '-10%', animationDelay: `${delay}s` };
+        } else if (phase === 'mixing') {
+          style = { left: `${Math.random() * 80 + 10}%`, top: '30%' }; 
+          
+          if (process === 'dissolve') {
+            animClass = 'animate-swirl-dissolve';
+          } else if (process === 'sink' || process === 'sink_clump') {
+            animClass = 'animate-swirl-sink';
+          } else if (process === 'cloud') {
+            animClass = 'animate-swirl-cloud';
+          } else if (process === 'react') {
+            animClass = 'animate-fizz-active';
+          }
+          style.animationDelay = `${Math.random() * 0.5}s`;
+        } else if (phase === 'done') {
+           if (process === 'cloud') return null;
+           if (process === 'react') return null;
+        }
+
+        return (
+          <div 
+            key={i} 
+            className={`absolute rounded-full ${color} ${animClass} pointer-events-none`}
+            style={{
+              width: process === 'cloud' ? '2px' : '4px',
+              height: process === 'cloud' ? '2px' : '4px',
+              ...style
+            }}
+          />
+        );
+      })}
+    </>
+  );
+};
+
+const Notebook = ({ isOpen, toggle, data, updateData, checkAnswers }) => {
+  const filledCount = SOLVENTS.reduce((acc, solvent) => {
+    return acc + SOLUTES.reduce((sAcc, solute) => {
+      return sAcc + (data[`${solvent.id}-${solute.id}`] ? 1 : 0);
+    }, 0);
+  }, 0);
+  const universalSelected = !!data.universal;
+  const totalRequired = (SOLVENTS.length * SOLUTES.length); 
+  const isComplete = filledCount === totalRequired && universalSelected;
+
+  const handleGradeClick = () => {
+    if (isComplete) {
+      checkAnswers();
+    } else {
+      const missing = [];
+      if (filledCount < totalRequired) missing.push("observations in the table");
+      if (!universalSelected) missing.push("the reflection question");
+      alert(`You can't grade an incomplete lab! Please finish recording your ${missing.join(" and ")}.`);
+    }
+  };
+
+  if (!isOpen) return (
+    <button 
+      onClick={toggle} 
+      className="fixed bottom-4 right-4 bg-stone-800 text-white p-4 rounded-lg shadow-xl hover:bg-stone-700 transition-all flex items-center gap-2 z-50 font-mono border-2 border-stone-600"
+    >
+      <BookOpen size={20} />
+      <span className="hidden md:inline">Open Lab Log</span>
+      {!isComplete && <span className="bg-red-500 text-[10px] px-1.5 py-0.5 rounded-full ml-1">{filledCount}/{totalRequired}</span>}
+    </button>
+  );
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-40 flex items-center justify-center p-4 backdrop-blur-sm">
+      <div className="bg-paper-pattern w-full max-w-4xl h-[90vh] overflow-y-auto rounded-sm shadow-2xl border-l-8 border-l-stone-800 flex flex-col relative">
+        <div className="absolute left-0 top-0 bottom-0 w-2 bg-stone-700"></div>
+        
+        <div className="p-8 font-mono text-stone-900">
+          <div className="flex justify-between items-start mb-6">
+            <div>
+              <h2 className="text-3xl font-bold uppercase tracking-widest underline decoration-red-500 decoration-2 underline-offset-4">Lab Report</h2>
+              <p className="text-sm text-stone-600 mt-2">Lesson 7: Substance Solubility</p>
+            </div>
+            <button onClick={toggle} className="text-stone-500 hover:text-red-600 font-bold text-xl">✖ CLOSE</button>
+          </div>
+
+          <div className="bg-yellow-50 border border-yellow-200 p-4 mb-6 rounded text-sm text-stone-700 flex gap-2">
+            <Info size={16} className="mt-0.5 flex-shrink-0" />
+            <p>Observe the beaker closely. Does the powder disappear (Soluble)? Does it sit at the bottom (Insoluble)? Or does it make the liquid cloudy (Partially)?</p>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse border-2 border-stone-800 text-sm md:text-base">
+              <thead>
+                <tr className="bg-stone-200">
+                  <th className="border-2 border-stone-800 p-2 text-left">Solvent \ Solute</th>
+                  {SOLUTES.map(s => (
+                    <th key={s.id} className="border-2 border-stone-800 p-2 w-24 text-center">{s.name}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {SOLVENTS.map(solvent => (
+                  <tr key={solvent.id}>
+                    <td className="border-2 border-stone-800 p-2 font-bold bg-stone-100">{solvent.name}</td>
+                    {SOLUTES.map(solute => {
+                      const key = `${solvent.id}-${solute.id}`;
+                      const currentVal = data[key];
+                      const correctVal = REACTIONS[key].result;
+                      
+                      let bgClass = 'bg-white';
+                      if (currentVal === 'soluble') bgClass = 'bg-green-200';
+                      if (currentVal === 'partially') bgClass = 'bg-yellow-100';
+                      if (currentVal === 'insoluble') bgClass = 'bg-red-200';
+
+                      return (
+                        <td key={key} className={`border-2 border-stone-800 p-1 text-center relative ${bgClass}`}>
+                          <select 
+                            value={currentVal || ''} 
+                            onChange={(e) => updateData(key, e.target.value)}
+                            className="w-full bg-transparent p-1 appearance-none focus:outline-none text-center font-semibold cursor-pointer"
+                          >
+                            <option value="">---</option>
+                            <option value="soluble">Soluble</option>
+                            <option value="partially">Partially</option>
+                            <option value="insoluble">Insoluble</option>
+                          </select>
+                          {data.checked && currentVal && (
+                            <div className="absolute top-0 right-0 pointer-events-none">
+                              {currentVal === correctVal ? 
+                                <CheckCircle size={12} className="text-green-600" /> : 
+                                <XCircle size={12} className="text-red-600" />
+                              }
+                            </div>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-8 p-4 border-2 border-dashed border-stone-400 bg-stone-50">
+            <h3 className="font-bold mb-2">Reflection:</h3>
+            <p className="mb-2">1. Which solvent was the "Universal Solvent"?</p>
+            <div className="flex gap-4 mb-4">
+              {SOLVENTS.map(s => (
+                <label key={s.id} className="flex items-center gap-2 cursor-pointer">
+                  <input 
+                    type="radio" 
+                    name="universal" 
+                    checked={data.universal === s.id} 
+                    onChange={() => updateData('universal', s.id)}
+                  /> 
+                  {s.name}
+                </label>
+              ))}
+               {data.checked && (
+                  data.universal === 'water' ? 
+                  <span className="text-green-600 font-bold text-sm ml-2">✓ Correct</span> : 
+                  data.checked && <span className="text-red-600 font-bold text-sm ml-2">✗ Incorrect</span>
+               )}
+            </div>
+            <button 
+              onClick={handleGradeClick} 
+              className={`px-6 py-2 rounded shadow transition-colors flex items-center gap-2 ${
+                isComplete 
+                  ? 'bg-stone-800 text-white hover:bg-stone-700' 
+                  : 'bg-stone-300 text-stone-500 cursor-not-allowed'
+              }`}
+            >
+              {!isComplete && <Lock size={16} />}
+              Grade My Lab
+            </button>
+            {!isComplete && <p className="text-xs text-red-500 mt-2 font-bold">Fill all table cells and answer the reflection question to grade.</p>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const StartScreen = ({ onStart }) => (
+  <div className="fixed inset-0 bg-slate-900 z-50 flex flex-col items-center justify-center text-center p-4">
+     <FlaskConical className="text-amber-400 mb-6 animate-bounce" size={64} />
+     <h1 className="text-4xl md:text-6xl font-bold text-white mb-4 tracking-tight">SOLUBILITY LAB</h1>
+     <p className="text-slate-400 mb-8 max-w-md">
+       Welcome to the virtual chemistry bench. Test solvents, observe reactions, and record your data.
+     </p>
+     
+     <button 
+       onClick={onStart}
+       className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold text-xl px-12 py-4 rounded-full shadow-[0_0_30px_rgba(245,158,11,0.4)] hover:scale-105 transition-all flex items-center gap-3"
+     >
+       <Play fill="currentColor" /> BEGIN EXPERIMENT
+     </button>
+
+     <div className="absolute bottom-8 text-xs text-slate-600 font-mono text-center">
+        <p className="font-bold text-slate-500">Music Attribution</p>
+        <p>"Trippy" by JBlanked</p>
+        <p>Source: Free Music Archive</p>
+        <p>License: CC BY-NC-ND</p>
+     </div>
+  </div>
+);
+
+export default function App() {
+  const [hasStarted, setHasStarted] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const audioRef = useRef(null);
+
+  const [currentSolvent, setCurrentSolvent] = useState(null);
+  const [currentSolute, setCurrentSolute] = useState(null);
+  const [reactionState, setReactionState] = useState('idle'); 
+  const [visualConfig, setVisualConfig] = useState(null); 
+  const [logData, setLogData] = useState({ checked: false });
+  const [notebookOpen, setNotebookOpen] = useState(false);
+  const [message, setMessage] = useState("Select a SOLVENT to begin.");
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = 0.3; // Set a reasonable background volume
+      if (hasStarted && !isMuted) {
+        audioRef.current.play().catch(e => console.log("Audio play failed:", e));
+      } else {
+        audioRef.current.pause();
+      }
+    }
+  }, [hasStarted, isMuted]);
+
+  const reset = () => {
+    setCurrentSolvent(null);
+    setCurrentSolute(null);
+    setReactionState('idle');
+    setVisualConfig(null);
+    setMessage("Bench cleared. Ready for next test.");
+  };
+
+  const handleSolventClick = (solvent) => {
+    if (reactionState !== 'idle') return;
+    setCurrentSolvent(solvent);
+    setMessage(`Added 50mL of ${solvent.name}. Now choose a SOLUTE.`);
+  };
+
+  const handleSoluteClick = (solute) => {
+    if (!currentSolvent) {
+      setMessage("You can't put a powder in an empty beaker. Add a liquid first.");
+      return;
+    }
+    if (currentSolute) return;
+    setCurrentSolute(solute);
+    setMessage(`${solute.name} added. Click MIX to start experiment.`);
+  };
+
+  const mix = () => {
+    if (!currentSolvent || !currentSolute) return;
+    
+    const reactionKey = `${currentSolvent.id}-${currentSolute.id}`;
+    const reactionData = REACTIONS[reactionKey];
+    setVisualConfig(reactionData);
+
+    setReactionState('pouring');
+    setMessage("Pouring solute...");
+
+    // TIMING UPDATE: Slower process
+    // Pouring: 4 seconds
+    setTimeout(() => {
+      setReactionState('mixing');
+      setMessage("Stirring... Observe the particles.");
+      
+      // Mixing: 8 seconds
+      setTimeout(() => {
+        setReactionState('done'); 
+        setMessage("Settling... wait for it...");
+        
+        // Settling: 6 seconds
+        setTimeout(() => {
+           setMessage("Observation complete. Record results in your log.");
+           if (Object.keys(logData).length <= 1) {
+             setTimeout(() => setNotebookOpen(true), 1000);
+           }
+        }, 6000); 
+
+      }, 8000); 
+    }, 4000); 
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-900 text-slate-100 font-sans selection:bg-amber-500 selection:text-black overflow-hidden flex flex-col">
+      
+      {/* Audio Element */}
+      <audio ref={audioRef} loop src="JBlanked - Trippy.mp3" />
+
+      {!hasStarted && <StartScreen onStart={() => setHasStarted(true)} />}
+
+      <header className="bg-slate-800 border-b border-slate-700 p-4 flex justify-between items-center shadow-lg z-10">
+        <div className="flex items-center gap-3">
+          <FlaskConical className="text-amber-400" size={32} />
+          <div>
+            <h1 className="font-bold text-xl tracking-tight">VIRTUAL LAB: <span className="text-amber-400 font-mono">SOLUBILITY</span></h1>
+            <p className="text-xs text-slate-400">Safety Goggles: Not Required</p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+           <button 
+            onClick={() => setIsMuted(!isMuted)} 
+            className="bg-slate-700 hover:bg-slate-600 p-2 rounded transition-colors text-slate-400 hover:text-white"
+            title={isMuted ? "Unmute Music" : "Mute Music"}
+          >
+            {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+          </button>
+          <button onClick={reset} className="bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded text-sm flex items-center gap-2 transition-colors">
+            <RotateCcw size={16} /> Clear Bench
+          </button>
+        </div>
+      </header>
+
+      <main className="flex-1 relative flex flex-col md:flex-row">
+        
+        {/* Inventory */}
+        <div className="w-full md:w-64 bg-slate-800/50 p-4 border-r border-slate-700 flex flex-col gap-6 overflow-y-auto z-10">
+          <div>
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Step 1: Solvents (50mL)</h3>
+            <div className="grid grid-cols-2 gap-2">
+              {SOLVENTS.map(s => (
+                <button 
+                  key={s.id}
+                  onClick={() => handleSolventClick(s)}
+                  disabled={currentSolvent !== null}
+                  className={`p-3 rounded text-sm font-medium transition-all border-2 relative group
+                    ${currentSolvent?.id === s.id 
+                      ? 'border-amber-400 bg-slate-700 ring-2 ring-amber-400/20' 
+                      : currentSolvent 
+                        ? 'border-slate-700 opacity-50 cursor-not-allowed' 
+                        : 'border-slate-600 hover:border-amber-400 hover:bg-slate-700'
+                    }`}
+                >
+                  <div className={`w-8 h-8 rounded-full mb-2 mx-auto border border-black/10 shadow-inner ${s.color}`}></div>
+                  {s.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Step 2: Solutes (1g)</h3>
+            <div className="grid grid-cols-2 gap-2">
+              {SOLUTES.map(s => (
+                <button 
+                  key={s.id}
+                  onClick={() => handleSoluteClick(s)}
+                  disabled={!currentSolvent || currentSolute !== null}
+                  className={`p-3 rounded text-sm font-medium transition-all border-2 relative
+                    ${currentSolute?.id === s.id 
+                      ? 'border-amber-400 bg-slate-700 ring-2 ring-amber-400/20' 
+                      : (!currentSolvent || currentSolute)
+                        ? 'border-slate-700 opacity-50 cursor-not-allowed' 
+                        : 'border-slate-600 hover:border-amber-400 hover:bg-slate-700'
+                    }`}
+                >
+                  <div className={`w-6 h-4 mb-2 mx-auto shadow-sm rounded-sm ${s.color}`}></div>
+                  {s.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Lab Bench */}
+        <div className="flex-1 bg-slate-900 relative flex flex-col items-center justify-center p-8">
+          
+          <div className="absolute top-4 left-0 right-0 text-center">
+             <div className="inline-flex items-center gap-2 bg-slate-800 px-6 py-2 rounded-full border border-slate-700 shadow-xl text-amber-100">
+               <Eye size={16} className="text-amber-400" />
+               <span className="font-mono text-sm">{message}</span>
+             </div>
+          </div>
+
+          <div className="relative w-64 h-80 mt-10 group">
+            {/* Glass Front Layer */}
+            <div className="absolute inset-0 border-4 border-white/40 border-t-0 rounded-b-3xl bg-gradient-to-br from-white/10 via-white/5 to-transparent backdrop-blur-[1px] z-20 shadow-2xl pointer-events-none"></div>
+            <div className="absolute -top-2 -left-2 w-8 h-4 border-l-4 border-b-4 border-white/40 rounded-bl-xl z-20 pointer-events-none"></div>
+
+            {/* Graduations */}
+            <div className="absolute bottom-10 right-4 w-4 h-0.5 bg-white/30 z-30 pointer-events-none"></div>
+            <div className="absolute bottom-20 right-4 w-8 h-0.5 bg-white/50 z-30 pointer-events-none"><span className="absolute right-10 -top-2 text-[10px] text-white/70 font-mono">50ml</span></div>
+            
+            {/* Liquid Container */}
+            <div 
+              className={`absolute bottom-2 left-2 right-2 rounded-b-[20px] transition-all duration-1000 ease-out z-10 flex justify-center items-end overflow-hidden
+                ${currentSolvent ? 'h-48 opacity-100' : 'h-0 opacity-0'}
+              `}
+              style={{ backgroundColor: currentSolvent?.hex || 'transparent' }}
+            >
+               {/* ACTIVE PARTICLES (Pouring & Mixing Phases) */}
+               {(reactionState === 'pouring' || reactionState === 'mixing') && (
+                  <ActiveParticles 
+                    phase={reactionState} 
+                    process={visualConfig?.process} 
+                    color={currentSolute?.color} 
+                  />
+               )}
+
+               {/* FINAL STATE (Done Phase) */}
+               {reactionState === 'done' && visualConfig && (
+                 <>
+                   {(visualConfig.visual === 'sediment' || visualConfig.visual === 'sediment_clumpy') && (
+                     <Sediment color={currentSolute?.pileColor} />
+                   )}
+
+                   {visualConfig.visual === 'cloudy' && (
+                     <div className="absolute inset-0 bg-white/20 backdrop-blur-[2px] animate-pulse-slow">
+                        {Array.from({length: 30}).map((_, i) => (
+                          <div key={i} className="absolute w-1 h-1 bg-white/60 rounded-full animate-float" 
+                               style={{left: `${Math.random()*100}%`, top: `${Math.random()*80 + 10}%`, animationDuration: `${3+Math.random()}s`}} />
+                        ))}
+                     </div>
+                   )}
+                   
+                   {visualConfig.visual === 'fizz' && (
+                      Array.from({length: 10}).map((_, i) => (
+                          <div key={i} className="absolute w-2 h-2 bg-white/40 rounded-full animate-bubble" 
+                               style={{left: `${Math.random()*90}%`, animationDelay: `${Math.random()}s`}} />
+                        ))
+                   )}
+
+                   {visualConfig.visual === 'clear' && (
+                      <div className="absolute inset-0 bg-gradient-to-t from-white/5 to-transparent opacity-50"></div>
+                   )}
+                 </>
+               )}
+            </div>
+
+            {/* Stir Rod - UPDATED ANIMATION: Moves in ellipse instead of rotating 360deg */}
+            <div className={`absolute left-1/2 top-[-40px] w-2 h-72 bg-white/40 border border-white/60 rounded-full transform origin-center transition-transform duration-500 z-10 backdrop-blur-sm
+               ${reactionState === 'mixing' ? 'animate-stir translate-y-24' : '-translate-y-full opacity-0'}
+            `}></div>
+          </div>
+
+          <div className="mt-12 h-16">
+            {currentSolvent && currentSolute && reactionState === 'idle' && (
+              <button 
+                onClick={mix}
+                className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold text-lg px-12 py-3 rounded-full shadow-[0_0_20px_rgba(245,158,11,0.5)] animate-pulse hover:animate-none transition-all transform hover:scale-105"
+              >
+                MIX INGREDIENTS
+              </button>
+            )}
+          </div>
+        </div>
+      </main>
+
+      <Notebook 
+        isOpen={notebookOpen} 
+        toggle={() => setNotebookOpen(!notebookOpen)} 
+        data={logData}
+        updateData={(k, v) => setLogData(p => ({ ...p, [k]: v }))}
+        checkAnswers={() => setLogData(p => ({ ...p, checked: true }))}
+      />
+
+      <style>{`
+        @keyframes fall {
+          0% { transform: translateY(0); opacity: 1; }
+          100% { transform: translateY(120px); opacity: 1; } /* Falls into liquid */
+        }
+        .animate-fall { animation: fall 1.5s ease-in forwards; }
+
+        @keyframes swirl-dissolve {
+          0% { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+          20% { transform: translate(-10px, 20px) rotate(90deg); opacity: 0.8; }
+          100% { transform: translate(10px, 50px) rotate(180deg); opacity: 0; } /* Fades out */
+        }
+        .animate-swirl-dissolve { animation: swirl-dissolve 4s ease-out forwards; }
+
+        @keyframes swirl-sink {
+          0% { transform: translate(0, 0); }
+          30% { transform: translate(10px, -10px); } /* Swirls up slightly */
+          100% { transform: translate(0, 150px); opacity: 1; } /* Sinks to bottom */
+        }
+        .animate-swirl-sink { animation: swirl-sink 5s ease-in-out forwards; }
+
+        @keyframes swirl-cloud {
+          0% { transform: translate(0, 0); opacity: 1; }
+          100% { transform: translate(${Math.random() * 20}px, ${Math.random() * 20}px); opacity: 0.6; }
+        }
+        .animate-swirl-cloud { animation: swirl-cloud 5s ease-out forwards; }
+
+        @keyframes fizz-active {
+          0% { transform: translateY(0) scale(1); opacity: 1; }
+          100% { transform: translateY(-100px) scale(1.5); opacity: 0; }
+        }
+        .animate-fizz-active { animation: fizz-active 1.5s linear infinite; }
+
+        @keyframes bubble {
+          0% { transform: translateY(100%) scale(0.5); opacity: 0; }
+          50% { opacity: 1; }
+          100% { transform: translateY(-200%) scale(1.5); opacity: 0; }
+        }
+        .animate-bubble { animation: bubble 3s infinite linear; }
+
+        @keyframes settle {
+          0% { opacity: 0; transform: translateX(-50%) translateY(10px); }
+          100% { opacity: 0.9; transform: translateX(-50%) translateY(0); }
+        }
+        .animate-settle { animation: settle 2s ease-out forwards; }
+
+        @keyframes float {
+          0% { transform: translateY(0) translateX(0); }
+          50% { transform: translateY(-10px) translateX(5px); }
+          100% { transform: translateY(0) translateX(0); }
+        }
+        .animate-float { animation: float 4s infinite ease-in-out; }
+
+        /* Updated Stir Animation: Ellipse instead of Rotation */
+        @keyframes stir {
+          0% { transform: translateX(-50%) translate(15px, 0); }
+          25% { transform: translateX(-50%) translate(0, 5px); } /* Front */
+          50% { transform: translateX(-50%) translate(-15px, 0); }
+          75% { transform: translateX(-50%) translate(0, -5px); } /* Back */
+          100% { transform: translateX(-50%) translate(15px, 0); }
+        }
+        .animate-stir { animation: stir 1s infinite linear; }
+        
+        .bg-paper-pattern {
+          background-color: #f5f5f4;
+          background-image: linear-gradient(#e7e5e4 1px, transparent 1px), linear-gradient(90deg, #e7e5e4 1px, transparent 1px);
+          background-size: 20px 20px;
+        }
+      `}</style>
+    </div>
+  );
+}
